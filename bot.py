@@ -29,7 +29,6 @@ def get_request():
         return jsonify({'error': 'Invalid secret'}), 403
     
     if pending_requests:
-        # Get first request
         key = list(pending_requests.keys())[0]
         data = pending_requests.pop(key)
         print(f"[Web] Sending request to Roblox: {data.get('action')} for {data.get('user_id')}")
@@ -122,7 +121,6 @@ class TowerSelect(Select):
             await interaction.response.send_message("No towers to select!", ephemeral=True)
             return
         
-        # Clear and set new selections
         user_selections[self.roblox_user_id] = []
         
         for tower_id in self.values:
@@ -164,7 +162,6 @@ class TowerSelectView(View):
         if self.towers:
             self.add_item(TowerSelect(self.towers, self.roblox_user_id, self.page))
         
-        # Navigation buttons
         prev_btn = Button(
             label="◀ Prev",
             style=discord.ButtonStyle.secondary,
@@ -191,7 +188,6 @@ class TowerSelectView(View):
         next_btn.callback = self.next_page
         self.add_item(next_btn)
         
-        # Action buttons
         confirm_btn = Button(
             label="✅ Confirm Restore",
             style=discord.ButtonStyle.success,
@@ -234,7 +230,6 @@ class TowerSelectView(View):
             )
             return
         
-        # Limit to 5
         selected = selected[:5]
         
         names = []
@@ -250,7 +245,6 @@ class TowerSelectView(View):
             ephemeral=True
         )
         
-        # Queue restore request
         request_key = f"{self.roblox_user_id}_restore"
         pending_requests[request_key] = {
             'user_id': self.roblox_user_id,
@@ -261,7 +255,6 @@ class TowerSelectView(View):
         
         print(f"[Bot] Queued restore request for {self.roblox_user_id}")
         
-        # Wait for result
         result_key = f"{self.roblox_user_id}_restore_result"
         
         for _ in range(60):
@@ -350,7 +343,6 @@ class RestoreView(View):
             
             status_msg = await dm.send("⏳ Fetching your towers...")
             
-            # Queue request
             pending_requests[user_id] = {
                 'user_id': user_id,
                 'discord_id': str(interaction.user.id),
@@ -359,14 +351,12 @@ class RestoreView(View):
             
             print(f"[Bot] Queued get_towers for {user_id}")
             
-            # Wait for result
             for i in range(30):
                 await asyncio.sleep(1)
                 
                 if user_id in completed_requests:
                     result = completed_requests.pop(user_id)
                     
-                    # Check for error
                     if result.get('error'):
                         await status_msg.edit(content=f"❌ **Error:** {result['error']}")
                         return
@@ -377,7 +367,6 @@ class RestoreView(View):
                         await status_msg.edit(content="❌ No restorable towers found!")
                         return
                     
-                    # Clear previous selections
                     user_selections.pop(user_id, None)
                     
                     await status_msg.delete()
@@ -391,7 +380,6 @@ class RestoreView(View):
                         color=discord.Color.blue()
                     )
                     
-                    # Preview
                     preview = []
                     for t in towers[:5]:
                         name = t['name']
@@ -430,7 +418,6 @@ class RestoreView(View):
 # ====== ADMIN COMMANDS ======
 @bot.command(name='reset')
 async def reset_claim(ctx, user_id: str = None):
-    """Reset a user's restore claim status"""
     if ctx.author.id not in ADMIN_IDS:
         await ctx.send("❌ No permission.")
         return
@@ -460,7 +447,6 @@ async def reset_claim(ctx, user_id: str = None):
 
 @bot.command(name='check')
 async def check_towers(ctx, user_id: str = None):
-    """Check towers for a user (bypasses claim)"""
     if ctx.author.id not in ADMIN_IDS:
         await ctx.send("❌ No permission.")
         return
@@ -511,7 +497,6 @@ async def check_towers(ctx, user_id: str = None):
 
 @bot.command(name='botstatus')
 async def bot_status(ctx):
-    """Check bot status"""
     if ctx.author.id not in ADMIN_IDS:
         return
     
@@ -530,15 +515,12 @@ async def bot_status(ctx):
 async def on_ready():
     print(f'✅ Bot online: {bot.user}')
     
-    # Re-register persistent view
     bot.add_view(RestoreView())
     
-    # Setup message
     try:
         channel = bot.get_channel(SETUP_CHANNEL_ID)
         
         if channel:
-            # Check if setup exists
             async for message in channel.history(limit=10):
                 if message.author == bot.user and message.embeds:
                     if any("Restoration" in (e.title or "") for e in message.embeds):
@@ -565,7 +547,6 @@ async def on_ready():
     except Exception as e:
         print(f"Setup error: {e}")
 
-# Run bot
 token = os.environ.get('DISCORD_TOKEN')
 if token:
     bot.run(token)
