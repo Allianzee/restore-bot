@@ -7,7 +7,7 @@ import asyncio
 import os
 
 # ====== CONFIGURATION ======
-SETUP_CHANNEL_ID = 1465622142514106464  # <-- YOUR CHANNEL ID HERE!
+SETUP_CHANNEL_ID = 1465622142514106464  # Your channel ID
 
 # ====== WEB SERVER ======
 app = Flask('')
@@ -74,9 +74,9 @@ class TowerSelect(Select):
         
         options = []
         for tower in page_towers:
-    label = tower['name'][:100]
-    if tower.get('shiny'):
-        label = "Shiny " + label  # <-- NOW SAYS "Shiny"
+            label = tower['name'][:100]
+            if tower.get('shiny'):
+                label = "Shiny " + label
             if tower.get('trait') and tower['trait'] != 'None':
                 label += f" | {tower['trait']}"
             
@@ -108,12 +108,17 @@ class TowerSelect(Select):
                     user_selections[self.roblox_user_id].append(tower)
                     break
         
-        selected_names = [t['name'] for t in user_selections[self.roblox_user_id]]
+        selected_names = []
+        for t in user_selections[self.roblox_user_id]:
+            name = t['name']
+            if t.get('shiny'):
+                name = "Shiny " + name
+            selected_names.append(name)
         
         await interaction.response.send_message(
             f"**Selected {len(user_selections[self.roblox_user_id])} towers:**\n" +
             "\n".join([f"• {name}" for name in selected_names[:5]]) +
-            f"\n\n{'✅ Click **Confirm Restore** when ready!' if len(user_selections[self.roblox_user_id]) >= 1 else ''}",
+            f"\n\n{'Click **Confirm Restore** when ready!' if len(user_selections[self.roblox_user_id]) >= 1 else ''}",
             ephemeral=True
         )
 
@@ -129,7 +134,7 @@ class TowerSelectView(View):
         if towers:
             self.add_item(TowerSelect(towers, user_id, self.page))
     
-    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary, row=1)
     async def prev_page(self, interaction: discord.Interaction, button: Button):
         if self.page > 0:
             self.page -= 1
@@ -139,7 +144,7 @@ class TowerSelectView(View):
         else:
             await interaction.response.defer()
     
-    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary, row=1)
     async def next_page(self, interaction: discord.Interaction, button: Button):
         if self.page < self.max_pages - 1:
             self.page += 1
@@ -149,15 +154,15 @@ class TowerSelectView(View):
         else:
             await interaction.response.defer()
     
-    @discord.ui.button(label="✅ Confirm Restore", style=discord.ButtonStyle.success, row=2)
+    @discord.ui.button(label="Confirm Restore", style=discord.ButtonStyle.success, row=2)
     async def confirm_btn(self, interaction: discord.Interaction, button: Button):
         if self.roblox_user_id not in user_selections or len(user_selections[self.roblox_user_id]) == 0:
-            await interaction.response.send_message("❌ Select at least 1 tower first!", ephemeral=True)
+            await interaction.response.send_message("Select at least 1 tower first!", ephemeral=True)
             return
         
         selected = user_selections[self.roblox_user_id][:5]
         
-        await interaction.response.send_message("⏳ Restoring your towers...", ephemeral=True)
+        await interaction.response.send_message("Restoring your towers...", ephemeral=True)
         
         pending_requests[self.roblox_user_id + "_restore"] = {
             'user_id': self.roblox_user_id,
@@ -174,29 +179,37 @@ class TowerSelectView(View):
                 
                 if result.get('success'):
                     embed = discord.Embed(
-                        title='✅ Towers Restored!',
+                        title='Towers Restored!',
                         color=discord.Color.green()
                     )
-                    restored_list = "\n".join([f"• {t['name']}" for t in selected])
-                    embed.add_field(name='📦 Restored', value=f"```{restored_list}```")
-                    embed.add_field(name='🎮 Join', value=result.get('ps_link', 'Join any server!'))
+                    
+                    restored_names = []
+                    for t in selected:
+                        name = t['name']
+                        if t.get('shiny'):
+                            name = "Shiny " + name
+                        restored_names.append(name)
+                    
+                    restored_list = "\n".join([f"• {name}" for name in restored_names])
+                    embed.add_field(name='Restored', value=f"```{restored_list}```")
+                    embed.add_field(name='Join', value=result.get('ps_link', 'Join any server!'))
                     
                     await interaction.followup.send(embed=embed, ephemeral=True)
                 else:
-                    await interaction.followup.send(f"❌ Failed: {result.get('error')}", ephemeral=True)
+                    await interaction.followup.send(f"Failed: {result.get('error')}", ephemeral=True)
                 
                 user_selections.pop(self.roblox_user_id, None)
                 return
         
-        await interaction.followup.send("⚠️ Timeout - check in-game!", ephemeral=True)
+        await interaction.followup.send("Timeout - check in-game!", ephemeral=True)
 
 class RestoreView(View):
     def __init__(self):
         super().__init__(timeout=None)
     
-    @discord.ui.button(label='🔄 Restore My Items', style=discord.ButtonStyle.green, custom_id='restore')
+    @discord.ui.button(label='Restore My Items', style=discord.ButtonStyle.green, custom_id='restore')
     async def restore(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message('📩 Check your DMs!', ephemeral=True)
+        await interaction.response.send_message('Check your DMs!', ephemeral=True)
         
         try:
             dm = await interaction.user.create_dm()
@@ -209,10 +222,10 @@ class RestoreView(View):
             user_id = msg.content.strip()
             
             if not user_id.isdigit():
-                await dm.send('❌ Invalid! Numbers only.')
+                await dm.send('Invalid! Numbers only.')
                 return
             
-            await dm.send('⏳ Fetching towers...')
+            await dm.send('Fetching towers...')
             
             pending_requests[user_id] = {
                 'user_id': user_id,
@@ -229,13 +242,13 @@ class RestoreView(View):
                         towers = result.get('towers', [])
                         
                         if not towers:
-                            await dm.send('❌ No restorable towers found!')
+                            await dm.send('No restorable towers found!')
                             return
                         
                         user_selections.pop(user_id, None)
                         
                         embed = discord.Embed(
-                            title='📦 Your Towers',
+                            title='Your Towers',
                             description=f'Found **{len(towers)}** towers!\nSelect up to **5** to restore.',
                             color=discord.Color.blue()
                         )
@@ -243,50 +256,47 @@ class RestoreView(View):
                         await dm.send(embed=embed, view=TowerSelectView(towers, user_id, interaction.user.id))
                         return
             
-            await dm.send('⚠️ Timeout!')
+            await dm.send('Timeout!')
             
         except Exception as e:
             print(f'Error: {e}')
 
 @bot.event
 async def on_ready():
-    print(f'✅ Bot online: {bot.user}')
+    print(f'Bot online: {bot.user}')
     bot.add_view(RestoreView())
     
-    # Auto-send setup message
     try:
         channel = bot.get_channel(SETUP_CHANNEL_ID)
         
         if channel:
-            # Check if already exists
             async for message in channel.history(limit=10):
                 if message.author == bot.user and message.embeds:
                     for embed in message.embeds:
                         if embed.title and "Restoration" in embed.title:
-                            print("✅ Setup already exists!")
+                            print("Setup already exists!")
                             return
             
-            # Send setup
             embed = discord.Embed(
-                title='🔄 Tower Restoration System',
+                title='Tower Restoration System',
                 description=(
                     'Lost towers due to a bug?\n'
                     'Click below to restore them!\n\n'
                     '**How it works:**\n'
-                    '1️⃣ Click the button\n'
-                    '2️⃣ Send your Roblox User ID\n'
-                    '3️⃣ Select up to 5 towers\n'
-                    '4️⃣ Confirm and receive!'
+                    '1. Click the button\n'
+                    '2. Send your Roblox User ID\n'
+                    '3. Select up to 5 towers\n'
+                    '4. Confirm and receive!'
                 ),
                 color=discord.Color.blue()
             )
             
             await channel.send(embed=embed, view=RestoreView())
-            print(f"✅ Setup sent to #{channel.name}!")
+            print(f"Setup sent to #{channel.name}!")
         else:
-            print("❌ Channel not found!")
+            print("Channel not found!")
             
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
