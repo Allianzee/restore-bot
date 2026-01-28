@@ -5,13 +5,14 @@ from flask import Flask, request, jsonify
 from threading import Thread
 import asyncio
 import os
+import time
 
 # ====== CONFIGURATION ======
 SETUP_CHANNEL_ID = 1465622142514106464  # Your channel ID
 ADMIN_IDS = [958738600491638896]  # Replace with your Discord user ID
 
 # ====== WEB SERVER ======
-app = Flask('')
+app = Flask(__name__)
 
 pending_requests = {}
 completed_requests = {}
@@ -19,6 +20,10 @@ completed_requests = {}
 @app.route('/')
 def home():
     return 'Restore Bot is alive!'
+
+@app.route('/health')
+def health():
+    return 'OK', 200
 
 @app.route('/get_request')
 def get_request():
@@ -65,10 +70,15 @@ def status():
     })
 
 def run_web():
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 10000))
+    print(f"[Web] Starting Flask server on port {port}")
+    app.run(host='0.0.0.0', port=port, threaded=True)
 
-Thread(target=run_web, daemon=True).start()
+# Start web server FIRST
+print("[Web] Initializing web server...")
+web_thread = Thread(target=run_web, daemon=True)
+web_thread.start()
+time.sleep(2)  # Give Flask time to start
 
 # ====== DISCORD BOT ======
 intents = discord.Intents.default()
@@ -232,11 +242,17 @@ class TowerSelectView(View):
         
         selected = selected[:5]
         
+        print(f"[Bot] Selected towers to restore for {self.roblox_user_id}:")
+        for t in selected:
+            print(f"  - {t['name']} | Shiny: {t.get('shiny')} | Trait: {t.get('trait')}")
+        
         names = []
         for t in selected:
             n = t['name']
             if t.get('shiny'):
                 n = "✨ " + n
+            if t.get('trait') and t['trait'] != 'None':
+                n += f" | {t['trait']}"
             names.append(n)
         
         await interaction.response.send_message(
@@ -245,12 +261,21 @@ class TowerSelectView(View):
             ephemeral=True
         )
         
+        towers_to_send = []
+        for t in selected:
+            towers_to_send.append({
+                'id': t.get('id', ''),
+                'name': t.get('name', ''),
+                'shiny': t.get('shiny', False),
+                'trait': t.get('trait', 'None')
+            })
+        
         request_key = f"{self.roblox_user_id}_restore"
         pending_requests[request_key] = {
             'user_id': self.roblox_user_id,
             'discord_id': str(self.discord_user_id),
             'action': 'restore',
-            'towers': selected
+            'towers': towers_to_send
         }
         
         print(f"[Bot] Queued restore request for {self.roblox_user_id}")
@@ -517,36 +542,42 @@ async def on_ready():
     
     bot.add_view(RestoreView())
     
-    try:
-        channel = bot.get_channel(SETUP_CHANNEL_ID)
-        
-        if channel:
-            async for message in channel.history(limit=10):
-                if message.author == bot.user and message.embeds:
-                    if any("Restoration" in (e.title or "") for e in message.embeds):
-                        print("Setup message already exists")
-                        return
-            
-            embed = discord.Embed(
-                title="🔄 Tower Restoration System",
-                description=(
-                    "**Lost towers due to a bug?**\n"
-                    "Click below to restore them!\n\n"
-                    "**How it works:**\n"
-                    "1️⃣ Click the button\n"
-                    "2️⃣ Send your Roblox User ID\n"
-                    "3️⃣ Select up to 5 towers\n"
-                    "4️⃣ Confirm and receive!\n\n"
-                    "⚠️ *You can only restore once per account!*"
-                ),
-                color=discord.Color.blue()
-            )
-            
-            await channel.send(embed=embed, view=RestoreView())
-            print(f"Setup message sent to #{channel.name}")
-    except Exception as e:
-        print(f"Setup error: {e}")
+    # Don't auto-send setup message to avoid rate limits
+    # Use !setup command instead
+    print("Use !setup command to send the restore button message")
 
+@bot.command(name='setup')
+async def setup_message(ctx):
+    """Send the restore button message"""
+    if ctx.author.id not in ADMIN_IDS:
+        await ctx.send("❌ No permission.")
+        return
+    
+    embed = discord.Embed(
+        title="🔄 Tower Restoration System",
+        description=(
+            "**Lost towers due to a bug?**\n"
+            "Click below to restore them!\n\n"
+            "**How it works:**\n"
+            "1️⃣ Click the button\n"
+            "2️⃣ Send your Roblox User ID\n"
+            "3️⃣ Select up to 5 towers\n"
+            "4️⃣ Confirm and receive!\n\n"
+            "⚠️ *You can only restore once per account!*"
+        ),
+        color=discord.Color.blue()
+    )
+    
+    await ctx.send(embed=embed, view=RestoreView())
+    
+    # Delete the command message
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+# Run bot
+print("[Bot] Starting Discord bot...")
 token = os.environ.get('DISCORD_TOKEN')
 if token:
     bot.run(token)
